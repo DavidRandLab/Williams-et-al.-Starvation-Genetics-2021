@@ -1,0 +1,81 @@
+---
+title: "Williams et al. Figure 1"
+author: "Shawn Williams"
+date: "5/2/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(ggsci) # for colors 
+mypal = pal_jama()(7)
+```
+
+```{r Figure 1a}
+cmh <- read_tsv('Figure 1/Raw Data/hybrid_swarm.sync.cmh', col_names = F)
+
+colnames(cmh) <- c('chr','pos','N',1:15,'-log10p') #rename columns. Sanple order is preserved from the merged bam
+cmh$`-log10p` <- p.adjust(cmh$`-log10p`, method = 'bonferroni') # correct the pvalues 
+
+cmh %>%
+  filter(chr %in% c('chr2L','chr3L','chr2R','chr3R', 'chr4', 'chrX' )) %>%
+  ggplot(aes(x = pos, y= -log10(`-log10p`), color = chr))+
+  geom_point()+
+  geom_hline(yintercept = -log10(10e-8), col = 'red', linetype = 2)+ # add line to denote 10e-8 cuttoff 
+  geom_hline(yintercept = -log10(10e-5), col = 'blue', linetype = 2)+
+  ylab('-log10 p-value')+
+  xlab('chr position')+
+  facet_wrap(~chr, ncol = 2)+
+  theme_bw(base_size = 8 )+
+  theme(panel.grid = element_blank(),
+        legend.position = 'none')+
+  scale_color_manual(values = mypal)
+  
+```
+
+
+```{r Figure 1b}
+# read in fst values 
+fst <- read_tsv('Figure 1/Raw Data/hybrid_swarm.sync_filtered.fst',
+                col_names = F)
+
+# named vector with the pairs of interest for fst measure
+# Each column represent the comparison between 2 pairs of samples. The ones in the named list are the ones that are of interest
+pairs.of.interest <- c('Cage_1' = '4:9',#x49
+                       'Cage_2' = '5:10',#x60
+                       'Cage_3' = '6:14',#x73
+                       'Cage_4' = '7:15',#x81
+                       'Cage_5' = '3:8', #x37
+                       'Cage_5.2' = '2:11',#28
+                       'Cage_1.2' = '1:12') #x16
+
+
+# convert table from wide to long format 
+fst %>%
+  # select the coloumns with fst values of interest
+  dplyr::select(X1:X5, all_of(c('X49', 'X60', 'X73', 'X81', 'X37', 'X28', 'X16'))) %>%
+  # convert to long format
+  pivot_longer(cols = X49:X16, names_to = NULL) %>%
+  # seperate the fst value from the pair 
+  separate(value, into = c('pairs','fst'),sep = '=')  %>%
+  #convert fst into a numeric
+  mutate(fst = as.numeric(fst))  -> fst #%>% filter(pairs %in% pairs.of.interest )
+
+
+fst%>%
+  filter(X1 %in% c('chr2L', 'chr2R', 'chr3L','chr3R','chrX','chr4')) %>% # keep standard chromosomes
+  ggplot(aes(x = X2, y = fst, color = X1)) +
+  #stat_summary(geom = 'line')+
+  geom_line(stat = 'summary')+ # plots the mean fst value across pairs 
+  xlab('chr position')+
+  facet_wrap(~X1, ncol = 2 ) +  
+  theme_bw(base_size = 8 )+
+  theme(panel.grid = element_blank(),
+        legend.position = 'none')+
+  scale_color_manual(values = mypal)
+
+```

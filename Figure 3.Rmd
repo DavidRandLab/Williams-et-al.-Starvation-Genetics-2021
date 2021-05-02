@@ -1,0 +1,122 @@
+---
+title: "Figure 3"
+author: "Shawn Williams"
+date: "5/2/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(readxl)
+library(ggsci)
+library(survival)
+source('Helper Functions/Survival_Functions.R')
+```
+
+```{r }
+dm <- read_excel('Figure 3/Raw Data/2019AUG Deficiency Mapping Count Sheet.xlsx',sheet = 2) # read in first data sheet
+
+for (i in 3:9){
+  dm <- dm %>%
+    full_join(read_excel('Figure 3/Raw Data/2019AUG Deficiency Mapping Count Sheet.xlsx',sheet = i)) # read through the remaining sheets and merge 
+}
+
+
+# Convert to survival format 
+Surv.exp.DF <- dm %>%
+  mutate_at(.vars = c('Cage','Df','Marker','Replicate'),.funs = factor) %>%
+  gather(Time,Death, -c('Cage','Df','Marker','Replicate')) %>%
+  mutate(Time=qf(Time))%>%
+  mutate_at(.vars = 'Time',.funs = as.double) %>%
+  filter(! is.na(Death)) 
+
+
+Dead=Surv.exp.DF$Death # creates a variable with the number of deaths
+survFormat.DF<- data.frame() # initialize empty data 
+#frame to store the expanded tables 
+
+for (iter in 1:dim(Surv.exp.DF)[1]){
+  i=0
+  while (i < Dead[iter]){
+    i = i+1 
+    TMP<- Surv.exp.DF[iter,]
+    TMP$deaths=1
+    survFormat.DF<- rbind(survFormat.DF,TMP) }
+}
+
+
+x.DF<- survfit(Surv(Time, deaths == 1) ~ 
+              Df+Marker, data= survFormat.DF)
+
+# set colors for each line to match other figure 
+Df.cols <- c(`Hemizygous  Df(3L)BSC394` = 	'violet'	,
+             `Hemizygous Df(3L)BSC673` =	'salmon', 
+             `Hemizygous Df(3L)BSC392` =	'slateblue',
+             `Hemizygous Df(3L)ED4470` = 'forrestgreen',
+             `Hemizygous Df(3L)BSC118` = 'dodgerblue',
+             
+             `Heterozygous  Df(3L)BSC394` = 	'black'	,
+             `Heterozygous Df(3L)BSC673` =	'black', 
+             `Heterozygous Df(3L)BSC392` =	'black',
+             `Heterozygous Df(3L)ED4470` = 'black',
+             `Heterozygous Df(3L)BSC118` = 'black')
+
+
+
+survival_df(x.DF) %>%
+  separate(Condition, into = c('Df', 'Marker'),sep = ", ") %>%
+  mutate(Df=factor(surv.delevel(Df))) %>%
+  mutate(Marker=factor(surv.delevel(Marker))) %>%
+  filter(Df %in% c(8975,24416,24418,26525)) %>%
+  mutate(Marker = factor(Marker)) %>%
+  mutate(Marker = fct_recode(Marker, Hemizygous = 'none', Heterozygous = 'TM6C', Heterozygous = 'TM6B')) %>%
+  mutate(Df = fct_recode(Df,` Df(3L)BSC394` = 	'24418'	,
+                         `Df(3L)BSC673` =	'26525', 
+                         `Df(3L)BSC392` =	'24416',
+                         `Df(3L)BSC118` = '8975')) %>%
+  mutate(Df = factor(Df,levels = unique(Df))) %>%
+  mutate(Geno = paste( Marker, Df)) %>%
+  
+  
+  ggplot(aes(x = time, y = survival, color = Geno)) +
+  geom_line(size = 1.2) +
+  xlab('Time (hrs)')+
+  ylab('Survival')+
+  scale_color_manual(name = "F1 Sibling", values = Df.cols) +
+  facet_wrap(~ Df, ncol = 2)+
+  theme_bw(base_size = 8 )+
+  theme(panel.grid = element_blank())
+
+```
+
+```{r Figure 3 stats}
+# function to extract p value for pairwise comparisons
+get.df.stats <- function(sub.var, df){
+  df %>%
+    filter(Df == sub.var) -> df
+  
+  df.diff <- survdiff(Surv(Time, deaths == 1) ~ 
+                        Df+Marker, data= df)
+  
+  pval <- pchisq(df.diff$chisq, length(df.diff$n)-1, lower.tail = FALSE)
+  
+  return(pval)
+}
+
+# loop to get all p.values 
+pvals <- c()
+for (v in  levels(pull(survFormat.DF,Df))){
+  row.out <- get.df.stats(v,survFormat.DF)
+  pvals <- c(pvals,row.out)
+}
+
+
+cbind('Deficiency Line' =  levels(pull(survFormat.DF,Df)),
+      'pval het vs hemi' = p.adjust(pvals,method = 'bonferroni')) %>% # corect pvals
+  as_tibble() %>%
+  write_csv('Figure 3/statistics_df_screen.csv')
+```

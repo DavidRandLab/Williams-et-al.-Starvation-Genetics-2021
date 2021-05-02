@@ -1,0 +1,126 @@
+---
+title: "Supplemental Figure 2"
+author: "Shawn Williams"
+date: "5/2/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+library(tidyverse)
+library(readxl)
+library(survival)
+library(ggsci)
+library(gggenes)
+
+source('Helper Functions/Survival_Functions.R')
+mypal = pal_jama()(7)
+
+
+```
+
+
+```{r Supplemental Figure 2a}
+# supfigure 2
+cR <- read_excel('Supplemental Figure 2/Deficiency  Region Validation Lines.xlsx')
+
+chr3Df <- read_excel('Supplemental Figure 2/Deficiencies chr3.xlsx')
+mergedLines <- chr3Df %>%
+  full_join(cR) %>%
+   filter(Stock %in% c(26525,8975,8970,24417,
+                       8066,8068,27577,8069,8072,
+                       26828,24416,24418,
+                       23667,26827,23668))
+
+mergedLines %>%
+  mutate(Stock=factor(Stock,levels = Stock)) %>%
+  add_column(strand='forward')%>%
+  add_column(direction=1)%>%
+  add_column(Chromosome = '3L') %>%
+  mutate(Deficiency = factor(Deficiency,levels = Deficiency)) %>%
+  
+  ggplot(aes(xmin = Start, xmax = End, y = Deficiency, fill = Deficiency)) +
+  geom_gene_arrow( )+
+  geom_vline(xintercept = c(9812381,9899255 ), size = .75, color = 'red', linetype = 2)+
+  xlab('Genomic Region') +
+  ylab('Deficiency Line')+
+    facet_wrap(~Chromosome)+
+   theme_bw(base_size = 8 )+
+  theme(panel.grid = element_blank(),
+        legend.position = 'none')
+ 
+
+```
+
+
+```{r Supplemental Figure 2b}
+dm <- read_excel('Figure 3/Raw Data/2019AUG Deficiency Mapping Count Sheet.xlsx',sheet = 2) # read in first data sheet
+
+for (i in 3:9){
+  dm <- dm %>%
+    full_join(read_excel('Figure 3/Raw Data/2019AUG Deficiency Mapping Count Sheet.xlsx',sheet = i)) # read through the remaining sheets and merge 
+}
+
+dm %>%
+  full_join(mergedLines %>%
+    mutate(Stock = as.character(Stock)),
+      by = c('Df' = 'Stock')) -> dm
+  
+  
+# Convert to survival format 
+Surv.exp.DF <- dm %>%
+  dplyr::select(Cage:Deficiency) %>%
+  mutate_at(.vars = c('Cage','Df','Marker','Replicate','Deficiency'),.funs = factor) %>%
+  gather(Time,Death, -c('Cage','Df','Marker','Replicate','Deficiency')) %>%
+  mutate(Time=qf(Time))%>%
+  mutate_at(.vars = 'Time',.funs = as.double) %>%
+  filter(! is.na(Death)) 
+
+
+Dead=Surv.exp.DF$Death # creates a variable with the number of deaths
+survFormat.DF<- data.frame() # initialize empty data 
+#frame to store the expanded tables 
+
+for (iter in 1:dim(Surv.exp.DF)[1]){
+  i=0
+  while (i < Dead[iter]){
+    i = i+1 
+    TMP<- Surv.exp.DF[iter,]
+    TMP$deaths=1
+    survFormat.DF<- rbind(survFormat.DF,TMP) }
+}
+
+
+x.DF<- survfit(Surv(Time, deaths == 1) ~ 
+              Deficiency+Marker, data= survFormat.DF)
+
+
+  survival_df(x.DF) %>%
+  separate(Condition, into = c('Deficiency', 'Marker'),sep = ", ") %>%
+  mutate(Deficiency=factor(surv.delevel(Deficiency))) %>%
+  mutate(Marker=factor(surv.delevel(Marker))) %>%
+  #filter(Df %in% c(8975,24416,24418,26525)) %>%
+  # filter(Df %in% c(8066,8068,27577,8069,8072,
+  #                      26828,24416,24418,
+  #                      23667,26827)) %>%
+  mutate(Marker = factor(Marker)) %>%
+  mutate(Marker = fct_recode(Marker, Hemizygous = 'none', Heterozygous = 'TM6C', Heterozygous = 'TM6B')) %>%
+ 
+  mutate(Deficiency = factor(Deficiency,levels = unique(Deficiency))) %>%
+  mutate(Geno = paste( Marker, Deficiency)) %>%
+  
+  
+  ggplot(aes(x = time, y = survival, color = Marker)) +
+  geom_line(size = 1.2) +
+  xlab('Time (hrs)')+
+  ylab('Survival')+
+  #scale_color_jama(name = 'Chromosome')+
+  facet_wrap(~ Deficiency, ncol = 5)+
+  theme_bw(base_size = 8 )+
+  theme(panel.grid = element_blank())
+
+
+```

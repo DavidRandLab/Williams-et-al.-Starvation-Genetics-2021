@@ -1,0 +1,214 @@
+---
+title: "Supplemental Figure 1"
+author: "Shawn Williams"
+date: "5/2/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+library(tidyverse)
+library(readxl)
+library(survival)
+library(ggsci)
+library(gggenes)
+
+library(VariantAnnotation)
+library(org.Dm.eg.db)
+library(GenomicFeatures)
+library(snpStats)
+library(IRanges)
+library(drosophila2.db)
+library(TxDb.Dmelanogaster.UCSC.dm6.ensGene)
+library(BSgenome.Dmelanogaster.UCSC.dm6)
+
+source('Helper Functions/Bioconductor_Functions.R')
+source('Helper Functions/Survival_Functions.R')
+mypal = pal_jama()(7)
+
+
+## color scheme 
+col_scheme <- c('765' = mypal[4],
+                '765-hybrid' = mypal[2],
+                '315' = mypal[1])
+```
+
+
+```{r Supplemental Figure 1a}
+stv <- read_excel('Supplemental Figure 1/2019 NOV siI-Zim53 Reciprocal Cross Count Sheets.xlsx')
+
+# Convert to survival format 
+Surv.exp <- stv %>%
+  mutate_at(.vars = c('Cage','FemaleParent','MaleParent','Replicate'),.funs = factor) %>%
+  gather(Time,Death,t12:t170) %>%
+  mutate(Time=qf(Time))%>%
+  mutate_at(.vars = 'Time',.funs = as.double) %>%
+  filter(! is.na(Death)) 
+
+
+Dead=Surv.exp$Death # creates a variable with the number of deaths
+survFormat<- data.frame() # initialize empty data 
+#frame to store the expanded tables 
+
+for (iter in 1:dim(Surv.exp)[1]){
+  i=0
+  while (i < Dead[iter]){
+    i = i+1 
+    TMP<- Surv.exp[iter,]
+    TMP$deaths=1
+    survFormat<- rbind(survFormat,TMP) }
+}
+
+
+x<- survfit(Surv(Time, deaths == 1) ~ 
+                 FemaleParent+MaleParent, data= survFormat)
+
+
+survival_df(x) %>%
+  separate(Condition, into = c('Female Parent', 'Male Parent'),sep = ", ") %>%
+  mutate(`Female Parent` = factor(surv.delevel(`Female Parent`))) %>%
+  mutate(`Male Parent` = str_remove_all(factor(surv.delevel(`Male Parent`)), '\\s')) %>%
+  mutate(`Female Parent` = fct_recode(`Female Parent` #'mito;765' =  'siI;765',
+                                )) %>%   #'765' = 'Zim53;765')) %>%
+  mutate(`Male Parent` = fct_recode(`Male Parent` #'mito;765' =  'siI;765',
+                               )) %>%     #'765' = 'Zim53;765')) %>%
+  mutate(Genotype = paste(`Female Parent`, `Male Parent`, sep = ' x\n')) %>%
+  
+  
+  
+
+  ggplot(aes(x = time, y = survival, color = Genotype)) +
+  geom_line(size = 1.2) +
+  scale_color_aaas()+
+  ylab('Starvation Survival')+
+  xlab('Time (hrs)')+
+  theme_bw(base_size = 8 )+
+  theme(panel.grid = element_blank(),
+        panel.border = element_rect(size = 1),
+        legend.position = 'bottom')
+
+```
+
+
+
+```{r Supplemental Figure 1b}
+fileIn<- ('Supplemental Figure 1/2019MAY_RNAseq.vcf')# read in vcf file 
+
+hdr<-scanVcfHeader(fileIn) # scan header of the vcf file 
+txdb<- TxDb.Dmelanogaster.UCSC.dm6.ensGene # load the txtdb 
+
+
+## Only keep the main chromosomes 
+seqlevels(txdb)<-  c("chr2L" ,"chr2R","chr3L","chr3R",    
+                     "chr4","chrX" )
+
+# Create Gene Ranges
+seqlevels(txdb)
+txdb<- keepStandardChromosomes(txdb)
+renameSeqlevels(txdb, gsub("chr", "", seqlevels(txdb)))
+txbygene<- transcriptsBy(txdb,"gene")
+
+
+# Generate tabindex for scan
+compressVcf<- bgzip(fileIn,tempfile())
+idx <- indexTabix(compressVcf, "vcf")
+tab <- TabixFile(compressVcf, idx)
+
+
+
+# read in filtered vcf file 
+vcfGeneral <- readVcf(fileIn, "dm6")
+
+
+GENO.table <- geno(vcfGeneral)$GT %>%
+  as_tibble(rownames = 'SNP') 
+
+# remove file path from colnames
+colnames(GENO.table) <- str_remove(colnames(GENO.table), '/users/swillia6/data/swillia6/Projects/2019JUL_MitoNuclear_SNPs/AlignedReads/')
+
+GENO.table %>%
+  filter(`Zim53-765.merged.bam` == '1/1' ) %>%
+  pivot_longer(cols = `siI-315.merged.bam`:`Zim53-765.merged.bam`, names_to = 'line') %>%
+  mutate(Genotype = fct_recode(value,
+                               'ref'  = '0/0',
+                               'SNP' = '0/1',
+                               'SNP' = '1/1',
+                               'missing' = './.')) %>%
+  separate(SNP, into = c('chr','pos'),extra = "merge") %>%
+  filter(chr %in% c('chr2L','chr3L',
+                    'chr2R','chr3R',
+                    'chrX', 'chr4'))  -> GENO.table.765
+
+
+GENO.table %>%
+  filter(`siI-315.merged.bam` == '1/1' ) %>%
+  pivot_longer(cols = `siI-315.merged.bam`:`Zim53-765.merged.bam`, names_to = 'line') %>%
+  mutate(Genotype = fct_recode(value,
+                               'ref'  = '0/0',
+                               'SNP' = '0/1',
+                               'SNP' = '1/1',
+                               'missing' = './.')) %>%
+  separate(SNP, into = c('chr','pos'),extra = "merge") %>%
+  filter(chr %in% c('chr2L','chr3L',
+                    'chr2R','chr3R',
+                    'chrX', 'chr4'))  -> GENO.table.315
+
+  
+  GENO.table.765 %>%
+  
+  filter(value %in% c('0/0','0/1','1/1')) %>%
+  filter(line != 'siI-315.merged.bam' ) %>%
+  filter(line != 'Zim53-315.merged.bam') %>%
+  mutate(line = fct_recode(line,'Zim53;765' = 'Zim53-765.merged.bam',
+                           #'315' = 'Zim53-315.merged.bam',
+                           'siI;765' = 'siI-765.merged.bam')) %>%
+  mutate(line = factor(line, levels = c('Zim53;765','siI;765'))) %>%
+  mutate(pos = factor(pos)) %>%
+ 
+  
+  
+  
+  ggplot( aes(x = pos, y= line, fill = value)) +
+  geom_tile(stat = 'identity')+
+  xlab('Variants')+
+  ylab('')+
+  scale_fill_manual(name = 'Genotype\nCall', 
+                    values = c('0/0' = 'darkblue',
+                               '0/1' = 'darkgreen',
+                               '1/1' = 'goldenrod'))+
+  #facet_wrap(~chr, ncol = 2)+
+  theme_bw(base_size = 8 )+
+  theme(panel.grid = element_blank(),
+        axis.text.x = element_blank())
+
+
+  GENO.table.315 %>%
+  filter(value %in% c('0/0','0/1','1/1')) %>%
+  filter(line != 'Zim53-765.merged.bam' ) %>%
+  filter(line != 'siI-315.merged.bam') %>%
+  mutate(line = fct_recode(line,'line_765-hybrid' = 'siI-765.merged.bam',
+                           'Zim53;315' = 'Zim53-315.merged.bam',
+                           'siI;765' = 'siI-765.merged.bam')) %>%
+  mutate(line = factor(line, levels = c('Zim53;315','siI;765'))) %>%
+  mutate(pos = factor(pos)) %>%
+  
+  
+  
+  
+  ggplot( aes(x = pos, y= line, fill = value)) +
+  geom_tile(stat = 'identity')+
+  xlab('Variants')+
+  ylab('')+
+  scale_fill_manual(name = 'Genotype\nCall', 
+                    values = c('0/0' = 'darkblue',
+                               '0/1' = 'darkgreen',
+                               '1/1' = 'coral4'))+
+  #facet_wrap(~chr, ncol = 2)+
+  theme_bw(base_size = 8 )+
+  theme(panel.grid = element_blank(),
+        axis.text.x = element_blank())
+
+```

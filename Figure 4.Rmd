@@ -1,0 +1,228 @@
+---
+title: "Figure 4"
+author: "Shawn Williams"
+date: "5/2/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(VariantAnnotation)
+library(org.Dm.eg.db)
+library(GenomicFeatures)
+library(snpStats)
+library(IRanges)
+library(drosophila2.db)
+library(TxDb.Dmelanogaster.UCSC.dm3.ensGene)
+library(BSgenome.Dmelanogaster.UCSC.dm3)
+source('Helper Functions/Bioconductor_Functions.R')
+```
+Below is the code used to subset the DGRP2 VCF file available on the dgrp2 website.
+```{r eval=FALSE, include=FALSE}
+library(VariantAnnotation)
+library(org.Dm.eg.db)
+library(GenomicFeatures)
+library(snpStats)
+library(IRanges)
+library(drosophila2.db)
+library(TxDb.Dmelanogaster.UCSC.dm3.ensGene)
+library(BSgenome.Dmelanogaster.UCSC.dm3)
+
+
+fileIn<- '/Users/shawnwilliams/Documents/Lab/11-202010 Genetics Manuscript/01-R/dgrp2.vcf' # read in vcf file 
+hdr<-scanVcfHeader(fileIn) # scan header of the vcf file 
+txdb<- TxDb.Dmelanogaster.UCSC.dm3.ensGene # load the txtdb 
+
+
+## Only keep the main chromosomes 
+seqlevels(txdb)<-  c("chr2L" ,"chr2R","chr3L","chr3R",    
+                     "chr4","chrX" )
+
+# Create Gene Ranges
+seqlevels(txdb)
+txdb<- keepStandardChromosomes(txdb)
+renameSeqlevels(txdb, gsub("chr", "", seqlevels(txdb)))
+txbygene<- transcriptsBy(txdb,"gene")
+
+
+# Generate tabindex for scan
+compressVcf<- bgzip(fileIn,tempfile())
+idx <- indexTabix(compressVcf, "vcf")
+tab <- TabixFile(compressVcf, idx)
+
+# Prefilter vcf for chromosome 3L
+Prefilter.3L <- function(x) { 
+  grepl("3L", x, fixed=TRUE) }
+
+prefilters <- FilterRules(list(chr3L=Prefilter.3L))
+
+# creat temp vcf prefiltered for chr 3L
+destination.file <- tempfile()
+filterVcf(tab,  "Dm3", destination.file, 
+          prefilters=prefilters,
+          verbose=TRUE)
+
+# read in filtered vcf file 
+vcfGeneral <- readVcf(destination.file, "dm3")
+
+
+# look for SNPs that overlap with df region
+Rng<-rowRanges(vcfGeneral)
+
+int<-GRanges(
+  seqnames = "3L",
+  ranges = IRanges(9812381, 9899255),
+  strand = "+")
+
+
+ol<- findOverlaps(Rng,int)
+GT <- geno(vcfGeneral)$GT
+GT.1<- GT[names(Rng[queryHits(ol),]),]
+
+# creat vcf that only has SNPs present in overalp region 
+Df.vcf<- vcfGeneral[row.names(GT.1)]
+
+
+
+# Save files for quicker analysis 
+out.dir <- '/Users/shawnwilliams/Documents/Lab/11-202010 Genetics Manuscript/01-R/'
+saveRDS(Df.vcf, paste0(out.dir, 'Df.vcf.RDS'))
+
+```
+
+
+```{r Figure 4a}
+# Read in VCF data 
+Df.vcf <- readRDS('Figure 4/Raw Data/Df.vcf.RDS') 
+
+
+GENO.table <- geno(Df.vcf)$GT %>%
+  as_tibble(rownames = 'SNP') %>%
+  pivot_longer(cols = line_21:line_913, names_to = 'line') %>%
+  mutate(Genotype = fct_recode(value,
+                               '0'  = '0/0', 
+                               '1' = '1/1',
+                               'NA' = './.')) %>%
+  mutate(Genotype = as.numeric(as.character(Genotype))) # covert genotype data into 0/1 
+
+
+
+# SNPs in 765 
+SNPS.765 <- GENO.table %>%
+  filter(Genotype == 1 & line == 'line_765') %>%
+  pull(SNP)
+
+
+# summarize allele frequency 
+Allele.Freq <- GENO.table %>% 
+  filter (SNP %in% SNPS.765) %>%
+  group_by(SNP) %>%
+  summarise(MAF = sum(Genotype,na.rm = T)/205) %>%
+  mutate(MAF = round(MAF,3)) %>%
+  mutate(MiAF = 1-MAF)
+
+Allele.Freq %>%
+  ggplot(aes( x= SNP, y = MAF)) +
+  geom_point()+
+  geom_hline(yintercept = 0.05, color = 'red')+
+  ylab('Minor Allele Frequency in DGRP')+
+  #ylab('SNPs')+
+  theme_bw(base_size = 8 )+
+  theme(panel.grid = element_blank(),
+        axis.text.x = element_blank())
+
+
+```
+
+```{r Figure 4b}
+
+# Look for low freq SNPs
+low.freq.SNPs <- Allele.Freq %>%
+  filter(MAF <= 0.1) %>%
+  pull(SNP)
+low.freq.VCF <- Df.vcf[low.freq.SNPs]
+
+
+
+# get transcript info 
+txdb<- TxDb.Dmelanogaster.UCSC.dm3.ensGene # load the txtdb 
+
+## Only keep the main chromosomes 
+seqlevels(txdb)<-  c("chr2L" ,"chr2R","chr3L","chr3R",    
+                     "chr4","chrX" )
+
+#seqlevels(Dmelanogaster) # check seq level on annotation
+seqlevels(low.freq.VCF) <- 'chr3L'
+
+
+# Get Summary of 765 SNPs 
+loc.all.variants <- locateVariants(low.freq.VCF, txdb, AllVariants())
+
+loc.all.variants.df  <- loc.all.variants %>%
+  as_tibble() %>%
+  mutate(SYMBOL = convert.2.sym(GENEID)) %>% 
+  dplyr::select(seqnames:end,LOCATION, GENEID,SYMBOL) %>%
+  distinct()
+
+
+# Summary of coding SNPs 
+loc.coding.variants <- predictCoding(low.freq.VCF, txdb, seqSource = Dmelanogaster)
+
+
+coding.variants.df <- DataFrame(loc.coding.variants) 
+ALT.Allele <- coding.variants.df$ALT %>%
+  unlist() %>%
+  as.character()
+
+
+coding.variants.df <- loc.coding.variants %>%
+  as_tibble() %>%
+  mutate(SYMBOL = convert.2.sym(GENEID)) %>% 
+  mutate(ALT = ALT.Allele) %>%
+  dplyr::select(seqnames:end,REF:ALT, GENEID:SYMBOL) %>%
+  distinct()
+
+#  SNPs Summary 
+loc.all.variants.df %>%
+  group_by(LOCATION)%>%
+  summarize(SNPs = n()) %>% 
+  ungroup() %>%
+  mutate(fraction = SNPs/cumsum(SNPs)) %>%
+  mutate(ymax = cumsum(fraction)) %>%
+  mutate(ymin =  lag(ymax, default = 0)) %>%
+  mutate(lab.pos = (ymax + ymin)/2) %>%
+  mutate(lab = paste0(LOCATION, ' : ', SNPs)) %>%
+  mutate(category = factor(LOCATION, levels = LOCATION)) %>%
+  
+  
+  
+  ggplot(aes( ymax=ymax, ymin=ymin, xmax=3, xmin=4, fill = category, label=lab)) +
+  geom_rect(alpha =.8) +
+  geom_text( x=3.3, aes(y=lab.pos), size=3) +
+  coord_polar(theta = 'y')+ 
+  xlim(c(1, 4)) +
+  xlab('')+
+  ylab('')+
+  
+  theme_bw(base_size = 8 )+
+  theme(panel.grid = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        legend.position = 'none')+
+  scale_fill_aaas()
+
+
+
+
+```
+
+```{r Table 1}
+# Table 1
+coding.variants.df %>%
+  write_csv('Figure 4/lowfreq_SNPs_unmaskedRegion.csv')
+
+```

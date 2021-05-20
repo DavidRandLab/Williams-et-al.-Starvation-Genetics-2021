@@ -1,0 +1,55 @@
+---
+title: "Supplemental Figure 3"
+author: "Shawn Williams"
+date: "5/18/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+library(tidyverse)
+library(readxl)
+library(ggsci)
+library(ggpubr)
+
+mypal = pal_jama()(7)
+
+
+```
+
+```{r}
+# glucose levels in complementation crosses 
+r1 <- read_excel('Supplemental Figure 3/Raw Data/01-2020NOV19 GLY-GLU Metabolism iPLA2-VIA Vallidations_R1.xlsx') %>%
+  add_column(Replicate = '1')
+r2 <- read_excel('Supplemental Figure 3/Raw Data/02-2020DEC01 GLY-GLU Metabolism iPLA2-VIA Vallidations_R2.xlsx')%>%
+  add_column(Replicate = '2')
+r3 <- read_excel('Supplemental Figure 3/Raw Data//03-2020DEC02 GLY-GLU Metabolism iPLA2-VIA Vallidations_R3.xlsx') %>%
+  add_column(Replicate = '3')
+glu <- bind_rows(r1,r2,r3)
+
+glu %>% 
+  #mutate(Cross = str_replace(Cross, 'Zim53;765',replacement = '765')) %>%
+  #mutate(Cross = str_replace(Cross, 'Zim53;315',replacement = '315')) %>%
+  mutate(Cross = str_replace(Cross, '80133',replacement = 'iPLA2-VIA[Delta174]')) %>%
+  mutate(Cross = str_replace(Cross, 'x ',replacement = 'x\n')) %>%
+
+ggplot(aes(x=Treatment, y = `Glu Normalized`, fill = Treatment))+ 
+  ylab('Glucose\n(normalized to protein)')+
+  xlab('')+
+  stat_summary(geom = "bar", fun = mean, position = "dodge") +
+  stat_summary(geom = "errorbar", fun.data = mean_se, position = "dodge", color = 'black')+
+  stat_compare_means(label.y = 0.02,ref.group = 'Control', label = 'p.signif', method = "t.test", hide.ns = T)+
+  facet_grid(~Cross)+
+  theme_bw(base_size = 11 )+
+  theme(panel.grid = element_blank(),
+        axis.line.x = element_blank(), 
+        axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        legend.position = 'bottom')+
+  scale_fill_aaas()
+ggsave(filename = 'Supplemental Figure 3/Supplementalfigure3.pdf',device = 'pdf',width = 7,height = 5)
+
+```

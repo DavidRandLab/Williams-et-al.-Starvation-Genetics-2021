@@ -13,9 +13,11 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(readxl)
 library(ggsci)
+library(gggenes)
 library(survival)
 source('Helper Functions/Survival_Functions.R')
 ```
+
 
 ```{r }
 dm <- read_excel('Figure 3/Raw Data/2019AUG Deficiency Mapping Count Sheet.xlsx',sheet = 2) # read in first data sheet
@@ -51,6 +53,19 @@ for (iter in 1:dim(Surv.exp.DF)[1]){
 
 x.DF<- survfit(Surv(Time, deaths == 1) ~ 
               Df+Marker, data= survFormat.DF)
+
+
+
+### summary 
+summary(x.DF)$table %>%
+  as_tibble(rownames = 'Condition') %>%
+  separate(Condition, into = c('Df', 'Marker'),sep = ", ") %>%
+  mutate(Df=factor(surv.delevel(Df))) %>%
+  mutate(Marker=factor(surv.delevel(Marker))) %>%
+  dplyr::select(Df,Marker,events:median) %>%
+  `colnames<-`(c('Deficiency Stock (BSC)','Marker', 'Events', 'Mean','SEM','Median'))%>%
+  write_csv('Figure 3//SummaryTable_dfscreen.csv')
+
 
 # set colors for each line to match other figure 
 Df.cols <- c(`Hemizygous  Df(3L)BSC394` = 	'violet'	,
@@ -88,9 +103,9 @@ survival_df(x.DF) %>%
   ylab('Survival')+
   scale_color_manual(name = "F1 Sibling", values = Df.cols) +
   facet_wrap(~ Df, ncol = 2)+
-  theme_bw(base_size = 8 )+
-  theme(panel.grid = element_blank())
-
+  theme_bw(base_size = 11 )+
+  theme(panel.grid = element_blank(), legend.position = 'right')
+ggsave(filename = 'Figure 3/figure3a_legend.pdf',device = 'pdf',width = 7,height = 4)
 ```
 
 ```{r Figure 3 stats}
@@ -120,3 +135,41 @@ cbind('Deficiency Line' =  levels(pull(survFormat.DF,Df)),
   as_tibble() %>%
   write_csv('Figure 3/statistics_df_screen.csv')
 ```
+
+
+```{r}
+# Figure 3
+cR <- read_excel('Figure 3/Raw Data/Deficiency  Region Validation Lines.xlsx')
+
+chr3Df <- read_excel('Figure 3/Raw Data/Deficiencies chr3.xlsx')
+mergedLines <- chr3Df %>%
+  #filter(Stock %in% c(24416,26525)) %>%
+  full_join(cR) %>%
+   filter(Stock %in% c(8975,24416,24418,26525))
+ 
+
+mergedLines %>%
+  mutate(Stock=factor(Stock,levels = Stock)) %>%
+  add_column(strand='forward')%>%
+  add_column(direction=1)%>%
+  add_column(Chromosome = '3L') %>%
+  mutate(Deficiency = factor(Deficiency,levels = Deficiency)) %>%
+  
+  ggplot(aes(xmin = Start, xmax = End, y = Deficiency, fill = Deficiency)) +
+  geom_gene_arrow( )+
+  geom_vline(xintercept = c(9812381,9899255 ), size = .75, color = 'red', linetype = 2)+
+  xlab('Genomic Region') +
+  ylab('Deficiency Line')+
+    facet_wrap(~Chromosome)+
+   theme_bw(base_size = 11 )+
+  theme(panel.grid = element_blank(),
+        panel.border = element_rect(size = 1))+
+  scale_fill_manual(values = c(`Df(3L)BSC394` = 	'violet'	,
+             `Df(3L)BSC673` =	'salmon', 
+             `Df(3L)BSC392` =	'slateblue',
+             `Df(3L)ED4470` = 'forrestgreen',
+             `Df(3L)BSC118` = 'dodgerblue'))
+
+ggsave(filename = 'Figure 3/figure3b.pdf',device = 'pdf',width = 7,height = 4)
+```
+

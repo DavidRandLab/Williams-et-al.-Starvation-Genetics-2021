@@ -67,6 +67,43 @@ x<- survfit(Surv(Time, deaths == 1) ~
                  FemaleParent+MaleParent, data= survFormat)
 
 
+### summary 
+summary(x.CandidateValidations)$table %>%
+  as_tibble(rownames = 'Condition') %>%
+  separate(Condition, into = c('Female Parent', 'Male Parent'),sep = ", ") %>%
+  mutate(`Female Parent` = factor(surv.delevel(`Female Parent`))) %>%
+  mutate(`Male Parent` = str_remove_all(factor(surv.delevel(`Male Parent`)), '\\s')) %>%
+  mutate(`Female Parent` = fct_recode(`Female Parent` #'mito;765' =  'siI;765',
+                                )) %>%   #'765' = 'Zim53;765')) %>%
+  mutate(`Male Parent` = fct_recode(`Male Parent` #'mito;765' =  'siI;765',
+                               )) %>%     #'765' = 'Zim53;765')) %>%
+  mutate(Genotype = paste(`Female Parent`, `Male Parent`, sep = ' x\n')) %>%
+  dplyr::select(`Female Parent`,`Male Parent`,events:median) %>%
+  `colnames<-`(c('Female Parent','Male Parent', 'Events', 'Mean','SEM','Median'))%>%
+  write_csv('Supplemental Figure 1/SummaryTable_figure1a.csv')
+
+
+### pvalue 
+ df.diff <- x<- survfit(Surv(Time, deaths == 1) ~ 
+                 FemaleParent+MaleParent, data= survFormat) # get suv diff for  pair
+ 
+ 
+  pval <- pchisq(df.diff$chisq, length(df.diff$n)-1, lower.tail = FALSE) # calc p val for the contrast
+
+  as_tibble(t(c('siI;765_Zim53;765', 'Zim53;765_siI;765'))) %>%
+            add_column('pval' =  pval) %>%
+  `colnames<-`(c("Genotype 1", "Genotype 2", "pval")) %>%
+  write_csv('Supplemental Figure 1/statistics_reciprocalcross.csv')
+
+
+
+```
+
+
+
+
+
+```{r }
 survival_df(x) %>%
   separate(Condition, into = c('Female Parent', 'Male Parent'),sep = ", ") %>%
   mutate(`Female Parent` = factor(surv.delevel(`Female Parent`))) %>%
@@ -85,10 +122,12 @@ survival_df(x) %>%
   scale_color_aaas()+
   ylab('Starvation Survival')+
   xlab('Time (hrs)')+
-  theme_bw(base_size = 8 )+
+  theme_bw(base_size = 11 )+
   theme(panel.grid = element_blank(),
         panel.border = element_rect(size = 1),
         legend.position = 'bottom')
+ggsave(filename = 'Supplemental Figure 1/Supplementalfigure1a.pdf',device = 'pdf',width = 7,height = 3.5)
+
 
 ```
 
@@ -180,9 +219,10 @@ GENO.table %>%
                                '0/1' = 'darkgreen',
                                '1/1' = 'goldenrod'))+
   #facet_wrap(~chr, ncol = 2)+
-  theme_bw(base_size = 8 )+
+  theme_bw(base_size = 11 )+
   theme(panel.grid = element_blank(),
         axis.text.x = element_blank())
+ggsave(filename = 'Supplemental Figure 1/Supplementalfigure1b.pdf',device = 'pdf',width = 3.5,height = 3.5)
 
 
   GENO.table.315 %>%
@@ -207,8 +247,9 @@ GENO.table %>%
                                '0/1' = 'darkgreen',
                                '1/1' = 'coral4'))+
   #facet_wrap(~chr, ncol = 2)+
-  theme_bw(base_size = 8 )+
+  theme_bw(base_size = 11 )+
   theme(panel.grid = element_blank(),
         axis.text.x = element_blank())
+ggsave(filename = 'Supplemental Figure 1/Supplementalfigure1c.pdf',device = 'pdf',width = 3.5,height = 3.5)
 
 ```

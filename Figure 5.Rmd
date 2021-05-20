@@ -14,7 +14,9 @@ library(tidyverse)
 library(readxl)
 library(ggsci)
 library(survival)
+library(ggsci)
 source('Helper Functions/Survival_Functions.R')
+mypal = pal_jama()(7)
 ```
 
 ```{r Figure 5}
@@ -50,6 +52,20 @@ x.CandidateValidations<- survfit(Surv(Time, deaths == 1) ~
                  F_parent+M_Parent, data= survFormat.CandidateValidations)
 
 
+summary(x.CandidateValidations)$table %>%
+  as_tibble(rownames = 'Condition') %>%
+  separate(Condition, into = c('F_Parent', 'M_Parent'),sep = ", ") %>%
+  mutate(F_Parent = factor(surv.delevel(F_Parent))) %>%
+  mutate(M_Parent=factor(surv.delevel(M_Parent))) %>%
+  mutate(M_Parent=str_remove_all(M_Parent, '\\s')) %>%
+  #mutate('chr' = factor(Marker, levels = chr.levels)) %>%
+  dplyr::select(F_Parent,M_Parent,events:median) %>%
+  `colnames<-`(c('F_Parent','F_Parent', 'Events', 'Mean','SEM','Median'))%>%
+  write_csv('Figure 5/SummaryTable_figure5.csv')
+```
+
+
+```{r Figure 5}
 # Convert to survival format 
 Surv.exp.CandidateValidations <- dm.1 %>%
   full_join(dm.2) %>%
@@ -97,16 +113,22 @@ survival_df(x.CandidateValidations) %>%
   
   ggplot(aes(x = time, y = survival, color = Female_Parent)) +
   geom_line(size = 1.2) +
-  scale_color_manual(name = "Female Parent", values = c('Zim53;765' = 'darkblue',
-                                                        'Zim53;315' = 'purple',
-                                                        'iPLA2-VIA[Delta174]' = 'black',
+  scale_color_manual(name = "Female Parent", values = c('Zim53;765' = mypal[4],
+                                                        'Zim53;315' = mypal[1],
+                                                        'iPLA2-VIA[Delta174]' = mypal[3],
                                                         'iPLA2-VIA[Delta192]' = 'grey50',
-                                                        'DGRP-765' = 'lightgreen' ))+ 
+                                                        'DGRP-765' = 'grey80' ))+ 
   xlab('Time (hrs)')+
   ylab('Survival')+
   facet_wrap(~ Male_Parent) +
-  theme_bw(base_size = 8 )+
+  theme_bw(base_size = 11 )+
   theme(panel.grid = element_blank())
+ggsave(filename = 'Figure 5/figure5.pdf',device = 'pdf',width = 7,height = 7)
+
+
+
+
+
 
 
 ```

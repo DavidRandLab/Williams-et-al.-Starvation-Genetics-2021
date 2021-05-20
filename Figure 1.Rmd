@@ -24,17 +24,17 @@ cmh$`-log10p` <- p.adjust(cmh$`-log10p`, method = 'bonferroni') # correct the pv
 cmh %>%
   filter(chr %in% c('chr2L','chr3L','chr2R','chr3R', 'chr4', 'chrX' )) %>%
   ggplot(aes(x = pos, y= -log10(`-log10p`), color = chr))+
-  geom_point()+
+  geom_point(size = 1)+
   geom_hline(yintercept = -log10(10e-8), col = 'red', linetype = 2)+ # add line to denote 10e-8 cuttoff 
   geom_hline(yintercept = -log10(10e-5), col = 'blue', linetype = 2)+
   ylab('-log10 p-value')+
   xlab('chr position')+
   facet_wrap(~chr, ncol = 2)+
-  theme_bw(base_size = 8 )+
+  theme_bw(base_size = 11 )+
   theme(panel.grid = element_blank(),
         legend.position = 'none')+
   scale_color_manual(values = mypal)
-  
+  ggsave(filename = 'Figure 1/figure1a.pdf',device = 'pdf',width = 7,height = 4)
 ```
 
 
@@ -73,9 +73,9 @@ fst%>%
   geom_line(stat = 'summary')+ # plots the mean fst value across pairs 
   xlab('chr position')+
   facet_wrap(~X1, ncol = 2 ) +  
-  theme_bw(base_size = 8 )+
+  theme_bw(base_size = 11 )+
   theme(panel.grid = element_blank(),
         legend.position = 'none')+
   scale_color_manual(values = mypal)
-
+ggsave(filename = 'Figure 1/figure1b.pdf',device = 'pdf',width = 7,height = 4)
 ```

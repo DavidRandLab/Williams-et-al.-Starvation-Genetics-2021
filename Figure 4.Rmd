@@ -131,11 +131,11 @@ Allele.Freq %>%
   geom_hline(yintercept = 0.05, color = 'red')+
   ylab('Minor Allele Frequency in DGRP')+
   #ylab('SNPs')+
-  theme_bw(base_size = 8 )+
+  theme_bw(base_size = 11 )+
   theme(panel.grid = element_blank(),
         axis.text.x = element_blank())
 
-
+ggsave(filename = 'Figure 4/figure4a.pdf',device = 'pdf',width = 7,height = 4)
 ```
 
 ```{r Figure 4b}
@@ -202,20 +202,20 @@ loc.all.variants.df %>%
   
   ggplot(aes( ymax=ymax, ymin=ymin, xmax=3, xmin=4, fill = category, label=lab)) +
   geom_rect(alpha =.8) +
-  geom_text( x=3.3, aes(y=lab.pos), size=3) +
+  geom_text( x=3.3, aes(y=lab.pos), size=4) +
   coord_polar(theta = 'y')+ 
   xlim(c(1, 4)) +
   xlab('')+
   ylab('')+
   
-  theme_bw(base_size = 8 )+
+  theme_bw(base_size = 11 )+
   theme(panel.grid = element_blank(),
         axis.text = element_blank(),
         axis.ticks = element_blank(),
         legend.position = 'none')+
   scale_fill_aaas()
 
-
+ggsave(filename = 'Figure 4/figure4b.pdf',device = 'pdf',width = 4,height = 4)
 
 
 ```

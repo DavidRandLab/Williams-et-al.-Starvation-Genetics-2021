@@ -15,6 +15,19 @@ library(readxl)
 library(ggsci)
 library(survival)
 source('Helper Functions/Survival_Functions.R')
+
+
+mypal = pal_jama()(7)
+
+
+## color scheme 
+col_scheme.expanded <- c('Zim53;765' = mypal[4],
+                         'line_765-hybrid' = mypal[2],
+                         'Zim53;315' = mypal[1],
+                         'iPLA2-VIA[Delta174]' = mypal[3],
+                         'Zim53;315 x\niPLA2-VIA[Delta174]' = mypal[5],
+                         'iPLA2-VIA[Delta174] x\nZim53;765' = mypal[6] )
+
 ```
 
 ```{r Figure 2a}
@@ -55,7 +68,8 @@ x.y <- survfit(Surv(Age, deaths == 1)~ Genotype + Marker, data = survFormat.765)
 
 survival_df(x.y) %>%
   separate(Condition, into = c('Genotype', 'Marker'),sep = ", ") %>%
-  mutate(Genotype = factor(surv.delevel(Genotype))) %>%
+  mutate(Genotype = factor(surv.delevel(Genotype),
+                           levels = c('Zim53;765', 'line_765-hybrid'))) %>%
   mutate(Marker=factor(surv.delevel(Marker))) %>%
   mutate(Marker=str_remove_all(Marker, '\\s')) %>%
   mutate('chr' = factor(Marker, levels = chr.levels)) %>%
@@ -67,15 +81,32 @@ survival_df(x.y) %>%
   xlim(c(0,175))+
   scale_colour_aaas(name = c('Heterozygous\nchromosome'))+
   facet_grid(~Genotype)+
-  theme_bw(base_size = 8 )+
+  theme_bw(base_size = 11 )+
   theme(panel.grid = element_blank(),
         legend.position = 'right')
+ggsave(filename = 'Figure 2/figure2a.pdf',device = 'pdf',width = 5,height = 4)
+
+# table for appendix 
+stv %>%
+  filter(Genotype == 'Zim53;765') %>%
+  dplyr::select(-Censor) %>%
+  write_csv('Figure 2/StarvationCounts_figure2a.csv')
+
+summary(x.y)$table %>%
+  as_tibble(rownames = 'Condition') %>%
+  separate(Condition, into = c('Genotype', 'Marker'),sep = ", ") %>%
+  mutate(Genotype = factor(surv.delevel(Genotype))) %>%
+  mutate(Marker=factor(surv.delevel(Marker))) %>%
+  mutate(Marker=str_remove_all(Marker, '\\s')) %>%
+  #mutate('chr' = factor(Marker, levels = chr.levels)) %>%
+  dplyr::select(Genotype,Marker,`*rmean`:median) %>%
+  `colnames<-`(c('Genotype','Marker','Mean','SEM','Median'))%>%
+  write_csv('Figure 2/SummaryTable_figure2a.csv')
 
 ```
 
 
 ```{r Figure 2a stats}
-
 # make sample variable with genotype and marker
 survFormat.765 %>%
   filter(Genotype == 'Zim53;765') %>%
@@ -103,7 +134,6 @@ for (i in 1:6){ # iterate through total # of combinations
 as_tibble(t(comb.pairs)) %>%
             add_column('pval' = p.adjust(p.vec,method = 'bonferroni')) %>%
   `colnames<-`(c("Genotype 1", "Genotype 2", "pval")) %>%
-  as_tibble() %>%
   write_csv('Figure 2/statistics_figure2a.csv')
 
 ```
@@ -159,18 +189,16 @@ survival_df(x) %>%
   geom_line(size = 1.8) +
   xlab('Time (hrs)')+
   ylab('Survival')+
-  scale_colour_aaas(name = c('Parent Line'))+
+  scale_colour_manual(name = c('Parent'),values= col_scheme.expanded)+
     facet_grid(~ Recombinant)+
 
-  theme_bw(base_size = 8 )+
-  theme(panel.grid = element_blank())
-
+  theme_bw(base_size = 11 )+
+  theme(panel.grid = element_blank(), legend.position = 'bottom')
+ggsave(filename = 'Figure 2/figure2c.pdf',device = 'pdf',width = 7,height = 4)
 ```
 
 
 ```{r Figure 2c stats}
-
-
 # make sample variable with genotype and recombinant
 Surv.exp.MM %>%
   mutate(sample = paste(Genotype, Recombinant, sep = '_')) -> Surv.exp.MM
@@ -201,3 +229,5 @@ as_tibble(t(comb.pairs)) %>%
   write_csv('Figure 2/statistics_figure2c.csv')
 
 ```
+
+

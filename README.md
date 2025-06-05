@@ -4,7 +4,7 @@ This manuscript has been revised and submitted for publication in G3. The new bi
 
 MS ID#: BIORXIV/2024/602254
 MS TITLE: Natural variation in phospholipase IPLA2-VIA contributes to starvation sensitivity in Drosophila melanogaster.
-Shawn B. Williams, Brian Franklin†, Faye A. Lemieux, David M Rand
+Shawn B. Williams, Brian Franklin, Faye A. Lemieux, David M Rand.
 
 The figures have been revised and have different Figure numbers in this repo than in the G3 manuscript under review. Until this repo is revised, the following figure changes have been made:
 
